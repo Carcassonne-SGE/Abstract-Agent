@@ -76,7 +76,8 @@ public abstract class AbstractDeterminizedAgent<N extends DeterminizedActionNode
     @Override
     public CarcassonneAction computeNextAction(CarcassonneGame game, long computationTime, TimeUnit timeUnit) {
         long startTimeNanos = System.nanoTime();
-        State rootState = game.getBoard();
+        State rootState = game.getBoard().deepCopy();
+        rootState.getTileDeck().determinize(rand);
         N root = rootFactory(rootState);
         int iterations = iterations(root, computationTime, timeUnit, startTimeNanos);
         AgentHelper.logSearchSummary(logger, playerId, startTimeNanos, iterations);
