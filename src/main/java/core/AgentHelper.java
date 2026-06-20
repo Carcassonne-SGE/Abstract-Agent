@@ -14,7 +14,7 @@ public final class AgentHelper {
 
     public static long computeSearchDeadlineNanos(long startTimeNanos, long computationTime, TimeUnit timeUnit) {
         long requestedBudgetNanos = timeUnit.toNanos(computationTime);
-        long marginNanos = 300_000;
+        long marginNanos = Math.min(requestedBudgetNanos / 10, 100_000_000L); // max 100ms margin to prevent timeouts
         return startTimeNanos + Math.max(0, requestedBudgetNanos - marginNanos);
     }
 

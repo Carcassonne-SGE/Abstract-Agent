@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit;
 ///
 /// Runs several determinized searches and merges their root action statistics.
 public abstract class AbstractDeterminizedEnsembleAgent implements GameAgent<CarcassonneGame, CarcassonneAction> {
-    private static final long ITERATION_BUFFER_NANOS = TimeUnit.MILLISECONDS.toNanos(200);
+
 
     @FunctionalInterface
     public interface DeterminizedAgentSupplier {
@@ -120,7 +120,7 @@ public abstract class AbstractDeterminizedEnsembleAgent implements GameAgent<Car
             rootCopy.getTileDeck().determinize(rand);
             DeterminizedActionNode<?> root = agents[i].searchForEnsemble(
                     rootCopy,
-                    agentBudgetNanos + ITERATION_BUFFER_NANOS,
+                    agentBudgetNanos,
                     TimeUnit.NANOSECONDS,
                     System.nanoTime()
             );
