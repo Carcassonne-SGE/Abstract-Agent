@@ -14,7 +14,7 @@ public final class AgentHelper {
 
     public static long computeSearchDeadlineNanos(long startTimeNanos, long computationTime, TimeUnit timeUnit) {
         long requestedBudgetNanos = timeUnit.toNanos(computationTime);
-        long marginNanos = Math.min(requestedBudgetNanos / 10, TimeUnit.MILLISECONDS.toNanos(10));
+        long marginNanos = 10000;
         return startTimeNanos + Math.max(0, requestedBudgetNanos - marginNanos);
     }
 
@@ -31,8 +31,7 @@ public final class AgentHelper {
                     "MCTS Player %d searched for %.3f seconds and completed %d iterations",
                     playerId,
                     elapsedSeconds,
-                    iterations
-            );
+                    iterations);
         }
     }
 
@@ -41,8 +40,7 @@ public final class AgentHelper {
             logger.debf_(
                     "MCTS Player %d iterations:",
                     playerId,
-                    iterations
-            );
+                    iterations);
         }
     }
 
@@ -55,7 +53,6 @@ public final class AgentHelper {
                 CarcassonneActionLayoutBit.getRotation(action),
                 CarcassonneActionLayoutBit.getAreaId(action),
                 CarcassonneActionLayoutBit.getTileId(action),
-                CarcassonneActionLayoutBit.getIsAction(action)
-        );
+                CarcassonneActionLayoutBit.getIsAction(action));
     }
 }
