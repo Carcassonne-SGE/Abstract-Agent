@@ -21,20 +21,36 @@ import java.util.concurrent.TimeUnit;
 public abstract class AbstractDeterminizedEnsembleAgent implements GameAgent<CarcassonneGame, CarcassonneAction> {
 
 
+    /// DeterminizedAgentSupplier
+    ///
+    /// Functional interface used to supply/create new instances of AbstractDeterminizedAgent.
     @FunctionalInterface
     public interface DeterminizedAgentSupplier {
         AbstractDeterminizedAgent<?> create(Logger logger, AbstractAgentConfiguration config, Random rand);
     }
 
+    /// AggregationMode
+    ///
+    /// Enum representing the modes used to aggregate search statistics across the ensemble trees.
     protected enum AggregationMode {
         POOLED_BY_VISITS,
         NORMALIZED_PER_TREE
     }
 
+    /// pooledByVisitsAggregationMode
+    ///
+    /// Returns the aggregation mode POOLED_BY_VISITS.
+    ///
+    /// @return the POOLED_BY_VISITS aggregation mode
     protected static AggregationMode pooledByVisitsAggregationMode() {
         return AggregationMode.POOLED_BY_VISITS;
     }
 
+    /// normalizedPerTreeAggregationMode
+    ///
+    /// Returns the aggregation mode NORMALIZED_PER_TREE.
+    ///
+    /// @return the NORMALIZED_PER_TREE aggregation mode
     protected static AggregationMode normalizedPerTreeAggregationMode() {
         return AggregationMode.NORMALIZED_PER_TREE;
     }
@@ -48,6 +64,15 @@ public abstract class AbstractDeterminizedEnsembleAgent implements GameAgent<Car
     protected int playerId;
 
 
+    /// AbstractDeterminizedEnsembleAgent
+    ///
+    /// Constructor for the ensemble agent using the default aggregation mode (POOLED_BY_VISITS).
+    ///
+    /// @param logger the logger instance used for reporting
+    /// @param config the configuration settings for the agent
+    /// @param agentsCount the number of sub-agents in the ensemble
+    /// @param agentSupplier the supplier to create sub-agents
+    /// @param rand the random number generator
     protected AbstractDeterminizedEnsembleAgent(
             Logger logger,
             AbstractAgentConfiguration config,
@@ -58,6 +83,16 @@ public abstract class AbstractDeterminizedEnsembleAgent implements GameAgent<Car
         this(logger, config, agentsCount, AggregationMode.POOLED_BY_VISITS, rand, agentSupplier);
     }
 
+    /// AbstractDeterminizedEnsembleAgent
+    ///
+    /// Constructor for the ensemble agent with a specified aggregation mode.
+    ///
+    /// @param logger the logger instance used for reporting
+    /// @param config the configuration settings for the agent
+    /// @param agentsCount the number of sub-agents in the ensemble
+    /// @param aggregationMode the method for combining sub-agent search statistics
+    /// @param rand the random number generator
+    /// @param agentSupplier the supplier to create sub-agents
     protected AbstractDeterminizedEnsembleAgent(
             Logger logger,
             AbstractAgentConfiguration config,
@@ -80,16 +115,34 @@ public abstract class AbstractDeterminizedEnsembleAgent implements GameAgent<Car
         }
     }
 
+    /// setUp
+    ///
+    /// Sets up the ensemble agent, configuring player ID and logging the agent config.
+    ///
+    /// @param numberOfPlayers the total number of players
+    /// @param playerNumber the player ID assigned to this agent
     @Override
     public void setUp(int numberOfPlayers, int playerNumber) {
         playerId = playerNumber;
         AgentHelper.logAgentConfiguration(logger, playerId, config);
     }
 
+    /// tearDown
+    ///
+    /// Performs teardown operations when the game or search finishes.
     @Override
     public void tearDown() {
     }
 
+    /// computeNextAction
+    ///
+    /// Computes and returns the next action by running multiple determinized MCTS searches
+    /// in sequential order and merging their results according to the aggregation mode.
+    ///
+    /// @param game the Carcassonne game instance
+    /// @param computationTime the search budget duration
+    /// @param timeUnit the unit of computationTime
+    /// @return the selected CarcassonneAction
     @Override
     public CarcassonneAction computeNextAction(CarcassonneGame game, long computationTime, TimeUnit timeUnit) {
         long startTimeNanos = System.nanoTime();
@@ -97,17 +150,10 @@ public abstract class AbstractDeterminizedEnsembleAgent implements GameAgent<Car
         long totalBudgetNanos = Math.max(1L, timeUnit.toNanos(computationTime));
 
         int totalIterations = 0;
-        int totalVisitedNodes = 0;
-        double visitSum = 0.0;
-        double childSum = 0.0;
-        int depthSum = 0;
-        int widthSum = 0;
-        int maxDepth = 0;
-        int maxWidth = 0;
-        int searchesRun = 0;
         Map<Integer, Float> actionScoreSums = new HashMap<>();
         Map<Integer, Integer> actionWeights = new HashMap<>();
 
+        // Loop over each ensemble member and allocate a portion of the remaining time budget
         for (int i = 0; i < agentsCount; i++) {
             long elapsedNanos = System.nanoTime() - startTimeNanos;
             long remainingBudgetNanos = totalBudgetNanos - elapsedNanos;
@@ -115,9 +161,13 @@ public abstract class AbstractDeterminizedEnsembleAgent implements GameAgent<Car
                 break;
             }
 
+            // Distribute remaining search budget equally among remaining sub-agents
             long agentBudgetNanos = Math.max(1L, remainingBudgetNanos / (agentsCount - i));
             State rootCopy = rootState.deepCopy();
+            // Determinize/shuffle the tile deck to simulate a random determinization for this sub-agent
             rootCopy.getTileDeck().determinize(rand);
+            
+            // Execute the MCTS search for this sub-agent
             DeterminizedActionNode<?> root = agents[i].searchForEnsemble(
                     rootCopy,
                     agentBudgetNanos,
@@ -125,131 +175,29 @@ public abstract class AbstractDeterminizedEnsembleAgent implements GameAgent<Car
                     System.nanoTime()
             );
             int localIterations = root.getVisits();
-            int visitedNodes = countVisitedNodes(root);
-            int depth = computeDepth(root);
-            int width = computeMaxWidth(root);
 
-            searchesRun++;
             totalIterations += localIterations;
-            totalVisitedNodes += visitedNodes;
-            visitSum += localIterations;
-            childSum += countExpandedChildren(root);
-            depthSum += depth;
-            widthSum += width;
-            maxDepth = Math.max(maxDepth, depth);
-            maxWidth = Math.max(maxWidth, width);
 
+            // Merge the resulting action statistics into the ensemble data collections
             mergeActionStats(actionScoreSums, actionWeights, collectActionValueSums(root), collectActionVisits(root));
         }
         
 
         AgentHelper.logSearchSummary(logger, playerId, startTimeNanos, totalIterations);
-        logEnsembleIterations(totalIterations, searchesRun, totalVisitedNodes, visitSum, childSum, depthSum, widthSum, maxDepth, maxWidth);
 
         int val = selectBestAction(rootState, actionScoreSums, actionWeights);
-        return AgentUtil.decodeAction(val);
+        return new CarcassonneAction(val);
     }
 
-    private void logEnsembleIterations(
-            int totalIterations,
-            int searchesRun,
-            int totalVisitedNodes,
-            double visitSum,
-            double childSum,
-            int depthSum,
-            int widthSum,
-            int maxDepth,
-            int maxWidth
-    ) {
-        if (logger != null && logger.isDebug()) {
-            logger.debf_(
-                    "MCTS Ensemble Player %d searches: %d iterations: %d avgIterations: %.2f maxDepth: %d avgDepth: %.2f maxWidth: %d avgWidth: %.2f visitedNodes: %d avgVisits: %.2f avgChildren: %.2f",
-                    playerId,
-                    searchesRun,
-                    totalIterations,
-                    searchesRun == 0 ? 0.0 : totalIterations / (double) searchesRun,
-                    maxDepth,
-                    searchesRun == 0 ? 0.0 : depthSum / (double) searchesRun,
-                    maxWidth,
-                    searchesRun == 0 ? 0.0 : widthSum / (double) searchesRun,
-                    totalVisitedNodes,
-                    totalVisitedNodes == 0 ? 0.0 : visitSum / totalVisitedNodes,
-                    totalVisitedNodes == 0 ? 0.0 : childSum / totalVisitedNodes
-            );
-        }
-    }
-
-    private int countVisitedNodes(DeterminizedActionNode<?> root) {
-        if (root == null || root.getVisits() <= 0) {
-            return 0;
-        }
-
-        int count = 1;
-        DeterminizedActionNode<?>[] children = root.getChildren();
-        if (children == null) {
-            return count;
-        }
-
-        for (DeterminizedActionNode<?> child : children) {
-            count += countVisitedNodes(child);
-        }
-        return count;
-    }
-
-    private int countExpandedChildren(DeterminizedActionNode<?> root) {
-        if (root == null || root.getVisits() <= 0) {
-            return 0;
-        }
-
-        int expandedChildren = 0;
-        DeterminizedActionNode<?>[] children = root.getChildren();
-        if (children == null) {
-            return 0;
-        }
-
-        for (DeterminizedActionNode<?> child : children) {
-            if (child != null && child.getVisits() > 0) {
-                expandedChildren++;
-            }
-        }
-        return expandedChildren;
-    }
-
-    private int computeDepth(DeterminizedActionNode<?> root) {
-        if (root == null || root.getVisits() <= 0) {
-            return 0;
-        }
-
-        int maxChildDepth = 0;
-        DeterminizedActionNode<?>[] children = root.getChildren();
-        if (children != null) {
-            for (DeterminizedActionNode<?> child : children) {
-                maxChildDepth = Math.max(maxChildDepth, computeDepth(child));
-            }
-        }
-        return 1 + maxChildDepth;
-    }
-
-    private int computeMaxWidth(DeterminizedActionNode<?> root) {
-        return computeMaxWidth(root, 0);
-    }
-
-    private int computeMaxWidth(DeterminizedActionNode<?> node, int depth) {
-        if (node == null || node.getVisits() <= 0) {
-            return 0;
-        }
-
-        int nodesAtDepth = depth == 0 ? 1 : 0;
-        int maxWidth = nodesAtDepth;
-        DeterminizedActionNode<?>[] children = node.getChildren();
-        if (children != null) {
-            for (DeterminizedActionNode<?> child : children) {
-                maxWidth = Math.max(maxWidth, computeMaxWidth(child, depth + 1));
-            }
-        }
-        return maxWidth;
-    }
-
+    /// mergeActionStats
+    ///
+    /// Merges the search statistics of a single search tree into the global ensemble stats
+    /// based on the selected AggregationMode.
+    ///
+    /// @param actionScoreSums map storing the accumulated scores of actions
+    /// @param actionWeights map storing the accumulated weights/visits of actions
+    /// @param actionValueSums action value sums from the current search tree
+    /// @param actionVisits action visits from the current search tree
     private void mergeActionStats(
             Map<Integer, Float> actionScoreSums,
             Map<Integer, Integer> actionWeights,
@@ -263,22 +211,35 @@ public abstract class AbstractDeterminizedEnsembleAgent implements GameAgent<Car
                 continue;
             }
 
+            // NORMALIZED_PER_TREE aggregation: average the scores within each tree first
+            // and increment the tree count weight by 1.
             if (aggregationMode == AggregationMode.NORMALIZED_PER_TREE) {
                 actionScoreSums.merge(action, entry.getValue() / visits, Float::sum);
                 actionWeights.merge(action, 1, Integer::sum);
             } else {
+                // POOLED_BY_VISITS aggregation: pool raw value sums and visits together
                 actionScoreSums.merge(action, entry.getValue(), Float::sum);
                 actionWeights.merge(action, visits, Integer::sum);
             }
         }
     }
 
+    /// selectBestAction
+    ///
+    /// Selects the best action from the legal action set based on the aggregated ensemble statistics.
+    /// Uses softmax sampling with a low temperature to select the action.
+    ///
+    /// @param rootState the root game state
+    /// @param actionScoreSums map of accumulated action scores
+    /// @param actionWeights map of accumulated action weights/visits
+    /// @return the selected action representation
     private int selectBestAction(State rootState, Map<Integer, Float> actionScoreSums, Map<Integer, Integer> actionWeights) {
         ActionSet actions = (ActionSet) rootState.calculatePossibleActionsUnique();
         if (actions.isEmpty()) {
             throw new IllegalStateException("Ensemble MCTS failed to find any legal action");
         }
 
+        // Count how many of the legal actions actually received search visits across the ensemble
         int count = 0;
         for (int i = 0; i < actions.size(); i++) {
             int action = actions.get(i);
@@ -287,6 +248,7 @@ public abstract class AbstractDeterminizedEnsembleAgent implements GameAgent<Car
             }
         }
 
+        // Fallback: if no actions were visited (e.g. timeout), pick the first legal action
         if (count == 0) {
             return actions.get(0);
         }
@@ -295,6 +257,7 @@ public abstract class AbstractDeterminizedEnsembleAgent implements GameAgent<Car
         int[] actionIds = new int[count];
         int index = 0;
 
+        // Calculate average values and populate arrays for temperature/softmax sampling
         for (int i = 0; i < actions.size(); i++) {
             int action = actions.get(i);
             int weight = actionWeights.getOrDefault(action, 0);
@@ -306,11 +269,19 @@ public abstract class AbstractDeterminizedEnsembleAgent implements GameAgent<Car
             }
         }
 
+        // Normalize scores to form a probability distribution
         AgentUtil.normalizeInPlace(scores);
+        // Softmax temperature sampling to pick the final action representation
         int samp = AgentUtil.sampleWithTemperature(scores, 0.018, rand);
         return actionIds[samp];
     }
 
+    /// collectActionValueSums
+    ///
+    /// Collects and returns the sum of child node values for each action from the given root node.
+    ///
+    /// @param root the root node
+    /// @return a map of action values
     private Map<Integer, Float> collectActionValueSums(DeterminizedActionNode<?> root) {
         Map<Integer, Float> actionValueSums = new HashMap<>();
         DeterminizedActionNode<?>[] children = root.getChildren();
@@ -326,6 +297,12 @@ public abstract class AbstractDeterminizedEnsembleAgent implements GameAgent<Car
         return actionValueSums;
     }
 
+    /// collectActionVisits
+    ///
+    /// Collects and returns the visit counts of child nodes for each action from the given root node.
+    ///
+    /// @param root the root node
+    /// @return a map of action visit counts
     private Map<Integer, Integer> collectActionVisits(DeterminizedActionNode<?> root) {
         Map<Integer, Integer> actionVisits = new HashMap<>();
         DeterminizedActionNode<?>[] children = root.getChildren();

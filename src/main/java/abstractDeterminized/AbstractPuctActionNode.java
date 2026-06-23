@@ -8,12 +8,22 @@ import model.state.HeuristicManager;
 import model.state.PerformActionManager;
 import model.state.State;
 
+/// AbstractPuctActionNode
+///
+/// Abstract base class for PUCT (Predictor Upper Confidence trees) nodes.
+/// Supports computation and expansion using heuristic-guided prior probabilities.
 public abstract class AbstractPuctActionNode<N extends AbstractPuctActionNode<N>> extends DeterminizedActionNode<N> {
+    /// HeuristicChildFactory
+    ///
+    /// Functional interface for creating child nodes with a heuristic score.
     @FunctionalInterface
     protected interface HeuristicChildFactory<N> {
         N create(int action, float score);
     }
 
+    /// RolloutActionSelector
+    ///
+    /// Functional interface for choosing an action during a rollout.
     @FunctionalInterface
     protected interface RolloutActionSelector {
         int choose(State state, ActionSet actions);
@@ -23,6 +33,18 @@ public abstract class AbstractPuctActionNode<N extends AbstractPuctActionNode<N>
     protected final float explorationCoefficient;
     protected final HeuristicConfiguration heuristicConfiguration;
 
+    /// AbstractPuctActionNode
+    ///
+    /// Constructor for the AbstractPuctActionNode. Initializes the node with the
+    /// agent, parent, action, checkpoint, and PUCT/heuristic configurations.
+    ///
+    /// @param agent the determinized MCTS agent
+    /// @param parent the parent node in the tree
+    /// @param action the action that led to this node
+    /// @param checkpoint the game state checkpoint at this node
+    /// @param heuristic the weight of the heuristic in selection
+    /// @param explorationCoefficient the exploration constant (c)
+    /// @param heuristicConfiguration the heuristic configurations used by the agent
     protected AbstractPuctActionNode(
             AbstractDeterminizedAgent<N> agent,
             N parent,
@@ -38,6 +60,14 @@ public abstract class AbstractPuctActionNode<N extends AbstractPuctActionNode<N>
         this.heuristicConfiguration = heuristicConfiguration;
     }
 
+    /// computeHeuristicScores
+    ///
+    /// Computes heuristic scores for all possible actions in the current state.
+    /// Uses caching for tile placement scoring to improve performance.
+    ///
+    /// @param state the current state of the game
+    /// @param actions the set of possible actions
+    /// @return an array of heuristic scores corresponding to each action
     protected final float[] computeHeuristicScores(State state, ActionSet actions) {
         float[] scores = new float[actions.size()];
         int cachedPositionRotation = Integer.MIN_VALUE;
@@ -61,6 +91,15 @@ public abstract class AbstractPuctActionNode<N extends AbstractPuctActionNode<N>
         return scores;
     }
 
+    /// expandWithHeuristicScores
+    ///
+    /// Expands the node by calculating heuristic scores for all possible actions,
+    /// optionally normalizing them, and creating child nodes using the child factory.
+    ///
+    /// @param state the current state of the game
+    /// @param normalizeScores whether to normalize the computed scores using min-max normalization
+    /// @param childFactory the factory to instantiate child nodes
+    /// @return the current node after expansion
     protected final N expandWithHeuristicScores(State state, boolean normalizeScores, HeuristicChildFactory<N> childFactory) {
         if (children != null || state.isGameOver()) {
             return self();
@@ -86,12 +125,29 @@ public abstract class AbstractPuctActionNode<N extends AbstractPuctActionNode<N>
         return self();
     }
 
+    /// chooseGreedyHeuristicAction
+    ///
+    /// Chooses an action from the possible actions set greedily using softmax sampling
+    /// over the normalized heuristic scores at the given temperature.
+    ///
+    /// @param state the current state of the game
+    /// @param actions the set of possible actions
+    /// @param temperature the temperature for softmax sampling
+    /// @return the chosen action integer representation
     protected final int chooseGreedyHeuristicAction(State state, ActionSet actions, double temperature) {
         float[] scores = computeHeuristicScores(state, actions);
         AgentUtil.normalizeInPlace(scores);
         return actions.get(AgentUtil.sampleWithTemperature(scores, temperature, agent.rand));
     }
 
+    /// averageHeuristicRollout
+    ///
+    /// Performs multiple heuristic-based rollouts and returns the average utility value.
+    ///
+    /// @param state the starting state of the rollout
+    /// @param rollouts the number of rollout simulations to perform
+    /// @param actionSelector the selector used to choose actions during the rollouts
+    /// @return the average utility value
     protected final float averageHeuristicRollout(State state, int rollouts, RolloutActionSelector actionSelector) {
         float utilitySum = 0f;
         for (int i = 0; i < rollouts; i++) {
@@ -101,6 +157,14 @@ public abstract class AbstractPuctActionNode<N extends AbstractPuctActionNode<N>
         return utilitySum / rollouts;
     }
 
+    /// heuristicRollout
+    ///
+    /// Performs a single rollout from the given state using the action selector
+    /// to choose actions until the game is over.
+    ///
+    /// @param state the starting state of the rollout
+    /// @param actionSelector the selector used to choose actions during the rollout
+    /// @return the utility value of the final terminal state
     protected final float heuristicRollout(State state, RolloutActionSelector actionSelector) {
         while (!state.isGameOver()) {
             if (state.getCurrentTile() == null) {
@@ -118,6 +182,12 @@ public abstract class AbstractPuctActionNode<N extends AbstractPuctActionNode<N>
         return agent.utility(state);
     }
 
+    /// performEncodedAction
+    ///
+    /// Decodes and performs the specified action on the game state.
+    ///
+    /// @param state the current state of the game
+    /// @param action the action to perform
     protected final void performEncodedAction(State state, int action) {
         PerformActionManager.performAction(
                 state,

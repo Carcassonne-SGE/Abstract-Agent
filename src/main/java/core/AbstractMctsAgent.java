@@ -21,15 +21,39 @@ public abstract class AbstractMctsAgent<N extends AbstractNode<?,N>>
     protected final Logger logger;
     protected int playerId;
 
+    /// AbstractMctsAgent
+    ///
+    /// Constructor for the abstract MCTS agent. Initializes the logger, configuration,
+    /// and random number generator.
+    ///
+    /// @param logger the logger instance used for reporting
+    /// @param config the configuration settings for the agent
+    /// @param rand the random number generator, or null to initialize a new one
     protected AbstractMctsAgent(Logger logger, AbstractAgentConfiguration config, Random rand) {
         this.logger = logger;
         this.config = config;
         this.rand = rand == null ? new Random():rand;
     }
 
+    /// computeNextAction
+    ///
+    /// Computes and returns the next action for the agent to take in the current game state
+    /// within the given computation budget.
+    ///
+    /// @param game the Carcassonne game instance
+    /// @param computationTime the search budget duration
+    /// @param timeUnit the unit of computationTime
+    /// @return the selected CarcassonneAction
     @Override
     public abstract CarcassonneAction computeNextAction(CarcassonneGame game, long computationTime, TimeUnit timeUnit);
 
+    /// setUp
+    ///
+    /// Sets up the agent before the game starts. Configures the player ID and
+    /// logs the agent configuration.
+    ///
+    /// @param numberOfPlayers the total number of players in the game
+    /// @param playerNumber the player number/ID assigned to this agent
     @Override
     public void setUp(int numberOfPlayers, int playerNumber) {
         playerId = playerNumber;
@@ -65,6 +89,13 @@ public abstract class AbstractMctsAgent<N extends AbstractNode<?,N>>
         return (float) state.getCollaborativeUtility();
     }
 
+    /// ucbTransform
+    ///
+    /// Transforms the raw average simulation value for use in UCB calculations.
+    /// By default, returns the value unchanged.
+    ///
+    /// @param value the raw average simulation value
+    /// @return the transformed value
     public float ucbTransform(double value) {
         return (float) value;
     }

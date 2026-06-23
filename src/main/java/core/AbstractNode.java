@@ -23,6 +23,14 @@ public abstract class AbstractNode<A extends AbstractMctsAgent<N>, N extends Abs
 
     protected State checkPoint;
 
+    /// AbstractNode
+    ///
+    /// Constructor for the abstract node. Initializes the agent reference,
+    /// parent node, and state checkpoint, and calculates the depth of the node.
+    ///
+    /// @param agent the agent executing the search
+    /// @param parent the parent node in the MCTS tree, or null if root
+    /// @param checkPoint the game state checkpoint at this node, or null
     protected AbstractNode(A agent, N parent, State checkPoint) {
         this.agent = agent;
         this.parent = parent;
@@ -56,9 +64,9 @@ public abstract class AbstractNode<A extends AbstractMctsAgent<N>, N extends Abs
     /// @apiNote for performance reasons state as parameter
     public abstract float simulate(State state);
 
-    /// backpropagation
+    /// backpropagate
     ///
-    /// again part of MCTS loop properties the values of the utility up the
+    /// again part of MCTS loop propagates the values of the utility up the
     /// tree to parent if there is a parent also update visits
     public final void backpropagate(float rolloutValue) {
         visits += 1;
@@ -96,8 +104,18 @@ public abstract class AbstractNode<A extends AbstractMctsAgent<N>, N extends Abs
     /// applies the action/card pop of the current node
     protected abstract void applyLocalTransition(State state);
 
+    /// getChildren
+    ///
+    /// Returns the array of child nodes generated from this node.
+    ///
+    /// @return an array containing the children nodes, or null/empty if none
     public abstract N[] getChildren();
 
+    /// self
+    ///
+    /// Utility method to cast the node instance to the generic node type N.
+    ///
+    /// @return the node cast to type N
     @SuppressWarnings("unchecked")
     protected final N self() {
         return (N) this;
@@ -137,14 +155,7 @@ public abstract class AbstractNode<A extends AbstractMctsAgent<N>, N extends Abs
                 }
             }else{
                 int action = PossibleActionManager.getRandomAction(state, agent.rand, agent.config.meepleProb());
-                PerformActionManager.performAction(state, new CarcassonneAction(
-                        CarcassonneActionLayoutBit.getIsAction(action),
-                        CarcassonneActionLayoutBit.getX(action),
-                        CarcassonneActionLayoutBit.getY(action),
-                        CarcassonneActionLayoutBit.getRotation(action),
-                        CarcassonneActionLayoutBit.getAreaId(action),
-                        CarcassonneActionLayoutBit.getTileId(action)
-                ));
+                PerformActionManager.performAction(state, new CarcassonneAction(action));
             }
         }
         return agent.utility(state);
@@ -214,6 +225,14 @@ public abstract class AbstractNode<A extends AbstractMctsAgent<N>, N extends Abs
         return selectBestChildByUcbNoShuffle(children, count);
     }
 
+    /// selectBestChildByUcbNoShuffle
+    ///
+    /// Selects and returns the child node with the highest UCB score
+    /// without shuffling the array first.
+    ///
+    /// @param children the array containing child nodes
+    /// @param count the number of elements in the array
+    /// @return the child node with the highest UCB score, or null if none found
     private <T extends N> T selectBestChildByUcbNoShuffle(T[] children, int count) {
         T best = null;
         float bestScore = Float.NEGATIVE_INFINITY;
@@ -256,14 +275,30 @@ public abstract class AbstractNode<A extends AbstractMctsAgent<N>, N extends Abs
     }
 
     // getters
+
+    /// getVisits
+    ///
+    /// Returns the number of times this node has been visited during search.
+    ///
+    /// @return the visit count
     public final int getVisits() {
         return visits;
     }
 
+    /// getValue
+    ///
+    /// Returns the accumulated simulation value of this node.
+    ///
+    /// @return the accumulated value
     public final float getValue() {
         return value;
     }
 
+    /// getDepth
+    ///
+    /// Returns the depth of the node in the search tree.
+    ///
+    /// @return the depth of the node
     public int getDepth() {
         return depth;
     }
