@@ -60,17 +60,6 @@ public abstract class AbstractPuctActionNode<N extends AbstractPuctActionNode<N>
         this.heuristicConfiguration = heuristicConfiguration;
     }
 
-    /// computeHeuristicScores
-    ///
-    /// Computes heuristic scores for all possible actions in the current state.
-    /// Uses caching for tile placement scoring to improve performance.
-    ///
-    /// @param state the current state of the game
-    /// @param actions the set of possible actions
-    /// @return an array of heuristic scores corresponding to each action
-    protected final float[] computeHeuristicScores(State state, ActionSet actions) {
-        return HeuristicManager.computePriors(state, actions, heuristicConfiguration);
-    }
 
     /// expandWithHeuristicScores
     ///
@@ -93,7 +82,7 @@ public abstract class AbstractPuctActionNode<N extends AbstractPuctActionNode<N>
         }
 
         children = newChildrenArray(actions.size());
-        float[] scores = computeHeuristicScores(state, actions);
+        float[] scores = HeuristicManager.computePriors(state, actions, heuristicConfiguration);
         if (normalizeScores) {
             AgentUtil.normalizeInPlace(scores);
         }
@@ -116,7 +105,7 @@ public abstract class AbstractPuctActionNode<N extends AbstractPuctActionNode<N>
     /// @param temperature the temperature for softmax sampling
     /// @return the chosen action integer representation
     protected final int chooseGreedyHeuristicAction(State state, ActionSet actions, double temperature) {
-        float[] scores = computeHeuristicScores(state, actions);
+        float[] scores = HeuristicManager.computePriors(state, actions, heuristicConfiguration);
         AgentUtil.normalizeInPlace(scores);
         return actions.get(AgentUtil.sampleWithTemperature(scores, temperature, agent.rand));
     }
