@@ -69,26 +69,7 @@ public abstract class AbstractPuctActionNode<N extends AbstractPuctActionNode<N>
     /// @param actions the set of possible actions
     /// @return an array of heuristic scores corresponding to each action
     protected final float[] computeHeuristicScores(State state, ActionSet actions) {
-        float[] scores = new float[actions.size()];
-        int cachedPositionRotation = Integer.MIN_VALUE;
-        float cachedTileScore = 0f;
-
-        for (int i = 0; i < actions.size(); i++) {
-            int candidateAction = actions.get(i);
-            int x = CarcassonneActionLayoutBit.getX(candidateAction);
-            int y = CarcassonneActionLayoutBit.getY(candidateAction);
-            int rotation = CarcassonneActionLayoutBit.getRotation(candidateAction);
-            int positionRotationKey = (x << 10) ^ (y << 2) ^ rotation;
-
-            if (positionRotationKey != cachedPositionRotation) {
-                cachedPositionRotation = positionRotationKey;
-                cachedTileScore = HeuristicManager.tilePlacementScore(state, x, y, rotation, heuristicConfiguration.positionHeuristik());
-            }
-
-            scores[i] = HeuristicManager.computePrior(state, candidateAction, cachedTileScore, heuristicConfiguration);
-        }
-
-        return scores;
+        return HeuristicManager.computePriors(state, actions, heuristicConfiguration);
     }
 
     /// expandWithHeuristicScores
