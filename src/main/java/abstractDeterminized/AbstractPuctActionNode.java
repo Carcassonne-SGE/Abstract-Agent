@@ -60,6 +60,25 @@ public abstract class AbstractPuctActionNode<N extends AbstractPuctActionNode<N>
         this.heuristicConfiguration = heuristicConfiguration;
     }
 
+    /// getSelectionScore
+    ///
+    /// Computes the selection score based on UCB and PUCT heuristic prior.
+    ///
+    /// @return the selection score
+    @Override
+    public float getSelectionScore() {
+        if (visits == 0) {
+            return Float.MAX_VALUE;
+        }
+        float q = agent.ucbTransform(value / (float) visits);
+        if (parent == null || parent.getVisits() <= 1) {
+            return q;
+        }
+        float b = (float) (Math.sqrt(parent.getVisits()) / (1 + visits));
+        return q + explorationCoefficient * heuristic * b;
+    }
+
+
 
     /// expandWithHeuristicScores
     ///
